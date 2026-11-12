@@ -2,7 +2,7 @@
 
 ## Reporting
 
-Report security issues to `<your-email>` or open a private advisory on
+Report security issues to `polyglot@example.com` or open a private advisory on
 GitHub. Do not open public issues for anything that could be exploited.
 
 ## Scope

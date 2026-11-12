@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "description": "Review any codebase and decide component by component which language wins. Produces a quantified, boundary-anchored migration roadmap.",
   "author": {
-    "name": "<Your Name>",
-    "url": "https://github.com/<you>"
+    "name": "Polyglot Architect",
+    "url": "https://github.com/polyglot-architect"
   },
-  "homepage": "https://github.com/<you>/polyglot-architect",
-  "repository": "https://github.com/<you>/polyglot-architect",
+  "homepage": "https://github.com/polyglot-architect/polyglot-architect",
+  "repository": "https://github.com/polyglot-architect/polyglot-architect",
   "license": "MIT",
   "keywords": [
     "claude-code",

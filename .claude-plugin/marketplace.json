@@ -1,8 +1,8 @@
 {
   "name": "polyglot-architect-marketplace",
   "owner": {
-    "name": "<Your Name>",
-    "url": "https://github.com/<you>"
+    "name": "Polyglot Architect",
+    "url": "https://github.com/polyglot-architect"
   },
   "plugins": [
     {

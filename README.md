@@ -45,7 +45,7 @@ Because "what language is fastest" is the wrong question. Speed is a property of
 ## Quick start
 
 ```bash
-git clone https://github.com/<you>/polyglot-architect.git \
+git clone https://github.com/polyglot-architect/polyglot-architect.git \
   ~/.claude/skills/polyglot-architect
 chmod +x ~/.claude/skills/polyglot-architect/scripts/*.sh
 ```

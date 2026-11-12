@@ -3,7 +3,7 @@
 ## 1. Install
 
 ```bash
-git clone https://github.com/<you>/polyglot-architect.git \
+git clone https://github.com/polyglot-architect/polyglot-architect.git \
   ~/.claude/skills/polyglot-architect
 chmod +x ~/.claude/skills/polyglot-architect/scripts/*.sh
 ```
