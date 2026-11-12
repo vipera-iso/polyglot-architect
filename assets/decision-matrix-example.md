@@ -1,46 +1,84 @@
-# Worked example — a CPU-first GGUF inference engine
+# Worked example — three different projects, same skill
 
-This is a filled-in matrix for an engine whose hot path was measured, not
-assumed. The point of the example is how many rows end in KEEP, and how the
-one SWAP row is justified by *capability*, not by speed.
+## Example A — Rust inference engine (Cargo workspace)
 
-## Measured context
+### Decision table (post anti-hype)
 
-- 1.5B model, Q4_K_M, 457-token prompt, 64 generated tokens.
-- Load: ~0.43 s. Prefill: ~9.0 s. Decode: ~36 ms/token (q4k 46%, q6k 24%,
-  attention 21%).
-- Memory bandwidth on the machine: memcpy 42.1 GB/s; the decode loop already
-  reaches 31–40 GB/s.
+| # | Unit | Lang | Proposed | Property | Boundary | Verdict | Cost | Revers. |
+|---|---|---|---|---|---|---|---|---|
+| 1 | backend-cpu | Rust | C/AVX2 | 85% hot, SIMD | trait `Backend` | **SWAP** | 2 mo | high |
+| 2 | core | Rust | — | cold 40% | public API | **KEEP** | — | — |
+| 3 | server | Rust | Go | warm, no hot | public API | **KEEP** | — | — |
+| 4 | runtime | Rust | — | stateful async | trait `Runtime` | **KEEP** | — | — |
 
-## Decision table
+**Anti-hype:** removed "Zig tokenizer" (cold, tax > win) and "Go server"
+(Rust async meets p99; Go adds GC tail). **Surviving: Rust + C (AVX2).**
 
-| # | Unit | Current | Proposed | Property that justifies swap | Verdict |
+**Roadmap Phase 1:** `backend-cpu` → C/AVX2 behind `backend_c_avx2` flag,
+shadow mode on conformance suite, cut over when p50 improves ≥ 30%.
+**Phase 2: none.**
+
+---
+
+## Example B — Node/TypeScript API monolith (single package)
+
+### Heat map
+| Unit | Cold % | Warm % | Hot % | Evidence | Profiler |
 |---|---|---|---|---|---|
-| 1 | backend-cpu decode kernel | Rust | Zig | none — bandwidth-bound at 74–95% of memcpy | KEEP |
-| 2 | backend-cpu prefill kernel | Rust | Zig | compute-bound, but measured 1.5% (noise) vs Rust tiled, at ~250/282 GFLOPS AVX2 peak | KEEP |
-| 3 | server | Rust | Go | HTTP is ~1–3 ms of a >2 s request | KEEP |
-| 4 | tokenizer | Rust | Zig | 2–4 ms per request, <0.1% | KEEP |
-| 5 | prefill matmul on GPU | — | C++/CUDA | GPU is new hardware capability, not a faster language for the same work | CONSIDER (feature-gated, needs a GPU runner) |
+| `api` | 0 | 20 | 0 | 5k req bench | clinic |
+| `pipeline` | 0 | 40 | 55 | leaf-heavy flame | clinic |
+| `db` | 0 | 5 | 0 | 5k req bench | clinic |
+| `image-codec` | 0 | 35 | 45 | flat flame | clinic |
 
-## What the anti-hype pass removed
+### Decision table (post anti-hype)
 
-- **Zig as a component language.** The kernel written in Zig matched the Rust
-  tiled path within noise, and the AVX-512 build of the same source ran 14%
-  *slower* on the benchmark CPU. Removing Zig loses nothing measurable.
-- **Go server.** The server is <1% of wall time; crossing the runtime trait
-  would cost more than it saves.
-- **Python.** Belongs to the harness outside the shipped binary.
+| # | Unit | Lang | Proposed | Property | Boundary | Verdict | Cost | Revers. |
+|---|---|---|---|---|---|---|---|---|
+| 1 | `pipeline` | TS | Bind sharp | memory-bound C | export | **BIND** | 1 mo | high |
+| 2 | `image-codec` | TS | Bind sharp | codec solved | export | **BIND** | 0.5 mo | high |
+| 3 | `api` | TS | — | warm | — | **KEEP** | — | — |
+| 4 | `db` | TS | — | warm | — | **KEEP** | — | — |
 
-## Surviving architecture
+**Anti-hype:** did **not** propose rewriting `pipeline` in Rust. Binding
+to `sharp` (wraps libvips in C) wins at 10× less cost.
+**Surviving: TypeScript + C (via sharp).**
 
-Rust everywhere, plus one optional C++/CUDA backend behind the existing
-`ForwardPass` trait, compiled only when the feature is on and entered only
-after a runtime device check.
+---
 
-## Go/no-go gates
+## Example C — Go microservice mesh + Python ML sidecar
 
-- Phase 1 (Rust prefill): token-id equality on conformance, ≥1.3x prefill on
-  the 457-token prompt.
-- Phase 2 (CUDA): conformance on a real GPU runner, greedy token equality,
-  and prefill faster than the CPU number on the same box.
-- Phase 3: stop. No third language has a measured case.
+### Heat map
+| Unit | Cold % | Warm % | Hot % | Evidence | Profiler |
+|---|---|---|---|---|---|
+| `gateway` | 0 | 30 | 0 | pprof 1k req/s | pprof |
+| `auth` | 0 | 10 | 0 | pprof | pprof |
+| `feature-store` | 0 | 25 | 0 | pprof | pprof |
+| `ml-sidecar` | 5 | 20 | 45 | py-spy + perf | py-spy |
+
+### Decision table (post anti-hype)
+
+| # | Unit | Lang | Proposed | Property | Boundary | Verdict | Cost | Revers. |
+|---|---|---|---|---|---|---|---|---|
+| 1 | `ml-sidecar` inference | Python | Bind ONNX Runtime | matmul in model | py-spy leaf | **BIND** | 1 mo | high |
+| 2 | `ml-sidecar` preprocess | Python | — | small | — | **KEEP** | — | — |
+| 3 | `gateway` | Go | — | warm | — | **KEEP** | — | — |
+| 4 | `auth` | Go | — | warm | — | **KEEP** | — | — |
+| 5 | `feature-store` | Go | — | warm | — | **KEEP** | — | — |
+
+**Anti-hype:** did **not** propose rewriting Python service in Rust. Hot
+path is model inference — already C++ via numpy/ONNX. Binding ONNX Runtime
+solves the actual bottleneck.
+**Surviving: unchanged (Go + Python).**
+
+---
+
+## Pattern across examples
+
+1. Detect boundaries — crates, directories, or services.
+2. Profile — always with a real tool, never from code reading.
+3. Match property to language — not to name.
+4. Prefer BIND over SWAP when a mature library exists.
+5. KEEP is common — most units were KEEP in all three examples.
+6. Surviving languages ≤ 2 — a third needs a metric current two can't
+   reach.
+7. Shadow mode is mandatory in Phase 1.

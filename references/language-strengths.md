@@ -1,46 +1,64 @@
-# Language strengths — match by property, not by reputation
+# Language strengths — match by property, not reputation
 
-The question is never "which language is fastest". It is "what does this unit
-actually spend its cycles on, and which language lets that specific resource be
-used best". A unit that is 90% DRAM traffic is a different problem from a unit
-that is 90% FLOPs, and both differ from one that is 90% parsing.
-
-## Matching table
+## Property → language matrix
 
 | Property the unit actually has | Language that wins | Why | Counter-indication |
 |---|---|---|---|
-| Dense linear algebra, SIMD, GPU kernels | C / C++ / CUDA, Mojo, Zig (CPU SIMD) | Direct control of vectors, stable ABI, mature BLAS/cuBLAS | Marshalling per call kills the gain if calls are tiny |
-| Cold start, binary size, no runtime | Zig, C, Rust | No GC, no interpreter startup, static linking | Ecosystem may lack the libraries the unit needs |
-| Tail-latency-sensitive, no GC pauses | Rust, C++, Zig | Deterministic memory, no collector | Manual memory management cost |
-| Concurrent request serving, observability | Go, Rust | Cheap goroutines / async, built-in profiling | GC tail latency at high load |
-| Glue, tooling, test harness, prototyping | Python | Ecosystem, speed of iteration | Never put Python on the inner loop |
-| Sandboxed plugin / portable module | Wasm (Rust/C++ → wasm) | Memory isolation, deterministic | Wasm↔host call overhead |
-| Stateful orchestration, ownership-heavy | Rust | Borrow checker prevents aliasing bugs across async state | Verbose for simple data pipelines |
-| String-heavy parsing, one-shot | Any; prefer current | Parsing is rarely hot enough to justify FFI | — |
+| Dense linear algebra, SIMD, GPU | C / C++ / CUDA, Zig, Mojo, Rust | Direct vector control, mature BLAS/cuBLAS | Tiny calls kill gain via marshalling |
+| Cold start, small binary, no runtime | Zig, C, Rust | No GC, no interpreter, static link | Ecosystem may lack libraries |
+| Tail-latency critical, no GC pauses | Rust, C++, Zig | Deterministic memory | Manual memory cost |
+| High-concurrency request serving | Go, Rust, Elixir | Cheap goroutines / async / actors | GC tail at extreme load |
+| Glue, tooling, prototyping, scripts | Python | Ecosystem, iteration speed | Never on the inner loop |
+| Numerical / data science, research | Python + NumPy/Numba/Polars | Fast iteration, C-backed | Not for production hot loops |
+| ML inference / training | Python front + C++/CUDA/Rust backends | Ecosystem + speed | Python alone too slow |
+| Frontend web UI | TypeScript + framework | Ecosystem, tooling | Not for server hot path |
+| Backend API, CRUD | Go, Node/TS, Rust, Java, C# | Ecosystem and concurrency | GC tails for latency-critical |
+| String-heavy parsing, one-shot | Any; prefer current | Rarely hot enough for FFI | — |
+| Sandboxed plugin / portable module | Wasm (from Rust/C++/Zig) | Isolation, determinism | wasm↔host overhead |
+| Stateful orchestration, ownership-heavy | Rust | Borrow checker prevents aliasing bugs | Verbose for simple pipelines |
+| Embedded / no_std / real-time | Rust, C, Zig | No runtime, deterministic | Ecosystem churn |
+| Enterprise business logic, JVM teams | Java / Kotlin, C# | Ecosystem, tooling, team | Cold start; GC tails |
+| Scripting/automation in-system | Python, Lua, JS | Embeddable, iteration speed | Embedding cost |
+| Systems programming, OS-adjacent | Rust, C, Zig | Control, no runtime | Verbose vs higher-level |
 
-## The two questions to ask before reading the table
+## Rule of properties
 
-1. **Is this unit bandwidth-bound or compute-bound?** Bandwidth-bound work
-   gains nothing from a faster instruction set or a language with better code
-   generation: the limit is bytes per second from DRAM. Measure the loop
-   against `memcpy` on the same machine. If it is above ~70% of memcpy, a
-   rewrite in any language is a dead end; the win has to come from reading
-   fewer bytes (quantization, fusion, caching).
-2. **How much work does one call do?** If a call does less than ~10 µs of
-   work and crosses an FFI boundary, the boundary cost is likely ≥10% of the
-   call. Coarsen the boundary (batch the calls) or keep the code where it is.
+Language should be chosen by **cycles-per-item** and **latency budget**,
+not by name:
 
-## Rule of thumb
+- **Compute or memory bandwidth** dominates + strict latency → low-level
+  language (Rust / C / C++ / Zig / CUDA).
+- **I/O wait** dominates → language matters little; pick the ecosystem
+  for the protocol.
+- **Branching / allocation** dominates → GC language may win on velocity
+  if latency budget allows.
+- **Synchronization** dominates → concurrency model decides, not raw
+  speed.
 
-If a call does less than ~10 µs of work and crosses an FFI boundary, the
-boundary cost is likely ≥10% of the call. Coarsen or keep.
+## FFI break-even cheat sheet
 
-## What "better language" cannot fix
+| Boundary | Cost/call | Break-even work |
+|---|---|---|
+| C ABI same-process | 10–20 ns | ~200 ns |
+| cgo | 100–200 ns | ~2 µs |
+| JNI | 50–100 ns | ~1 µs |
+| N-API (Node↔C) | 100–200 ns | ~2 µs |
+| PyO3 | ~1 µs | ~10 µs |
+| ctypes / cffi | 1–5 µs | ~20 µs |
+| wasm-bindgen | 1–5 µs | ~20–50 µs |
+| Subprocess + pipe | ~1 ms | ~ms |
+| gRPC localhost | ~100 µs | ~2 ms |
+| Shared memory + ring buffer | 50–100 ns | ~1 µs (stream) |
 
-- DRAM bandwidth ceiling
-- Cache misses caused by data layout
-- Algorithmic complexity
-- Lock contention and scheduling
-- Cold-start cost dominated by file I/O and parsing
+**5% rule:** if boundary cost > 5% of the call's work, batch calls, use
+streaming, or keep the current language.
 
-Each of these looks like a language problem in a profile and is not one.
+## When a language is a bad choice — regardless of reputation
+
+- Rust for a 200-line CLI that runs once — toolchain tax > win.
+- C++ for a service that spends 90% of time in `wait()` on I/O.
+- Go for a per-token streaming pipeline with hard p99 — GC tail.
+- Python for an inner loop — the boundary to NumPy already exists;
+  rewrite as a NumPy vectorized call, not a whole module.
+- Zig / Mojo for a production service in 2025 — ecosystem readiness is
+  the blocker; measure before committing.

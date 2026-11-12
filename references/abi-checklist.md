@@ -1,60 +1,84 @@
-# Seam specification checklist
+# Seam specification — all FFI mechanisms
 
-For each language boundary, fill every line. A seam with an unanswered line is
-not specified; do not propose the swap.
+Fill every section for each SWAP or BIND row. Missing fields = incomplete
+spec = do not proceed to Phase 1.
 
-## Mechanism
+## Mechanism catalog
 
-- [ ] C ABI (`extern "C"`) — most portable, no runtime dependency
-- [ ] cgo — Go↔C, adds cgo call overhead (~100 ns+)
-- [ ] wasm-bindgen — sandboxed, adds serialization
-- [ ] subprocess + pipe — isolation, high per-call cost
-- [ ] shared memory + ring buffer — lowest latency for streams
-- [ ] GPU driver API through `dlopen` — no hard link, runtime feature check
+### Same-process
+- [ ] **C ABI (`extern "C"`)** — Rust↔C, C++↔C, Zig↔C, Go (via cgo).
+  Most portable. ~10–20 ns.
+- [ ] **cgo** — Go↔C. ~100–200 ns. Blocks goroutine scheduler during call.
+- [ ] **JNI** — Java/Kotlin↔C/C++. ~50–100 ns. Exception mapping required.
+- [ ] **N-API** — Node↔C/C++. ~100–200 ns. Thread-safe, callback-heavy.
+- [ ] **PyO3 / Cython** — Python↔Rust/C. ~1 µs. Release GIL where safe.
+- [ ] **ctypes / cffi** — Python↔C. ~1–5 µs. No GIL release by default.
+- [ ] **wasm-bindgen / wasmtime** — JS↔wasm, any-host↔wasm. ~1–5 µs.
+- [ ] **cbindgen / bindgen** — headers across language pairs.
 
-Record why the chosen mechanism beats the next-best one by at least 2x in
-marshalling cost, or say plainly that it does not and the seam is still worth
-it for capability (not speed).
+### Cross-process
+- [ ] **Subprocess + pipe** — ~1 ms. Best isolation.
+- [ ] **gRPC / REST localhost** — ~100 µs–ms.
+- [ ] **Message queue** (NATS, RabbitMQ, Kafka) — ~ms. Durable.
+- [ ] **Shared memory + ring buffer** — ~50–100 ns. Best for streams.
+- [ ] **Unix domain socket** — ~10–50 µs. Local, cheap.
+
+### Cross-host
+- [ ] **Network RPC** — ~ms. Only when workload justifies partition.
 
 ## Ownership
 
-- [ ] Caller allocates, callee writes
-- [ ] Callee allocates, caller frees (must match allocator)
-- [ ] Arena owned by one side, borrowed by the other
-- [ ] Copy at boundary (safe, but costs bandwidth)
+- [ ] Caller allocates, callee writes.
+- [ ] Callee allocates, caller frees (**must match allocator**).
+- [ ] Arena owned by one side, borrowed by the other.
+- [ ] Copy at boundary (safe, costs bandwidth).
+- [ ] Refcounted shared object (Arc / shared_ptr) with explicit cross-
+      runtime rule.
 
-Additional rules:
-- No pointer from the garbage-collected or managed side may outlive the call
-  unless the collector is pinned for that region.
-- Every handle crossing the seam is opaque to the other side; only the owning
-  side interprets it.
-- One function frees, and it is on the same side that allocated.
+State the exact allocator. **`malloc` from C cannot be freed by Rust's
+global allocator** — match allocators, use `libc::free`, or copy.
 
 ## Error model
 
-- [ ] Return code + out-param
-- [ ] Thread-local last-error
-- [ ] Panic=abort at seam (never unwind across FFI)
-- [ ] Structured error struct with owned message
+- [ ] Return code + out-param.
+- [ ] Thread-local last-error.
+- [ ] Panic = abort at seam (never unwind across FFI).
+- [ ] Structured error struct with owned message (caller frees).
+- [ ] Exception mapping (Java↔C, Python↔C, C#↔C).
 
-Choose one and write the mapping table: seam code → domain error → user-facing
-message. A seam that returns `-1` with no message is not acceptable for a
-library that reports errors by name.
+## Threading & cancellation
 
-## Cancellation and timeout
+- [ ] Sync callee from async caller — thread pool / `spawn_blocking`.
+- [ ] Async callee from sync caller — nested runtime or dedicated loop.
+- [ ] Who owns the runtime? (tokio, goroutine scheduler, GIL, JVM).
+- [ ] Thread affinity — can the callee run on any thread?
+- [ ] Cancellation — how caller aborts in-flight work (flag, fd close,
+      context token).
+- [ ] Timeouts — enforced by caller or callee?
 
-- [ ] Cancellation flag (atomic) polled by the callee
-- [ ] Stream/queue teardown on the caller side
-- [ ] Deadline propagated into the callee
-- [ ] None — call is short enough (state the measured bound)
+See `concurrency-models.md` for the cross-runtime risk matrix.
 
 ## Marshalling worksheet
 
-| Call | Payload bytes | Estimated ns | Work done by call | Boundary % |
-|------|---------------|--------------|-------------------|------------|
-| example: matmul tile | 4 KB | ~200 ns | ~50 µs | 0.4% → fine |
-| example: sample token | 64 B | ~50 ns | ~2 µs | 2.5% → fine |
-| example: get_config | 1 KB | ~300 ns | ~0.1 µs | 300% → do not cross |
+| Call | Payload bytes | Est. ns | Work per call | Boundary % | Verdict |
+|------|---------------|---------|---------------|------------|---------|
+| matmul tile | 4 KB | 200 | 50 µs | 0.4% | fine |
+| sample token | 64 B | 50 | 2 µs | 2.5% | fine |
+| get_config | 1 KB | 300 | 0.1 µs | 300% | do not cross |
+| batch of 64 tokens | 4 KB | 200 | 128 µs | 0.15% | fine |
 
-The last row is the one that matters: a cheap call behind a boundary is
-strictly worse than the same call in-process. Batch it, cache it, or leave it.
+If any row exceeds 5% → batch, stream, or drop the swap.
+
+## Full seam template
+
+```
+Boundary:        <langA> ↔ <langB> via <module/crate/service>
+Mechanism:       <C ABI / cgo / JNI / PyO3 / N-API / wasm-bindgen / ...>
+Allocator:       <who allocates, who frees, which allocator>
+Ownership:       <borrowed / owned / arena / refcounted / copied>
+Error model:     <return code / Result / exception mapping / abort>
+Threading:       <sync/async, runtime owner, affinity>
+Cancellation:    <how caller aborts in-flight>
+Marshalling:     <ns/call, bytes/call, % of call work>
+Test oracle:     <conformance / parity suite name>
+```

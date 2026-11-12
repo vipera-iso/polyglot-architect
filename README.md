@@ -59,17 +59,32 @@ already right.
 ## Files
 
 ```
-SKILL.md                          the skill body (workflow + output contract)
-references/language-strengths.md  property-to-language matching, and what a
-                                  language cannot fix (bandwidth, layout, cache)
-references/abi-checklist.md       seam template + marshalling worksheet
-references/report-template.md     fill-in report skeleton
-assets/decision-matrix-example.md worked example on a CPU-first inference engine
+SKILL.md                            the skill body (7-step workflow + output
+                                    contract)
+scripts/discover-boundaries.sh      detect project type, list candidate units
+scripts/profile.sh                  language-agnostic profiler dispatcher
+references/project-layouts.md       where seams live in any project type
+references/language-strengths.md    property-to-language matching, and what a
+                                    language cannot fix (bandwidth, layout, cache)
+references/profiling-tools.md       profiler lookup per language, and how to
+                                    read a flamegraph
+references/concurrency-models.md    cross-runtime risk matrix, cancellation
+references/abi-checklist.md         seam template + marshalling worksheet
+references/report-template.md       fill-in report skeleton
+assets/decision-matrix-example.md   three worked examples: Rust engine, Node
+                                    monolith, Go mesh + Python sidecar
 ```
 
-The worked example is deliberately mostly KEEP rows: it shows the filter doing
-its job on a real measurement set, including a Zig kernel that matched the Rust
-one within noise and an AVX-512 build that ran 14% slower.
+The worked examples are deliberately mostly KEEP rows: they show the filter
+doing its job — in all three, the swaps that survive are bindings to mature
+libraries that already exist, and no example ends with more than two
+languages.
+
+The two scripts are optional helpers — the skill works without them.
+`profile.sh` delegates to per-language profilers that are installed
+separately when you want real measurements (`cargo install flamegraph`,
+`pip install py-spy memray`, `npm i -g clinic`, or `perf` / `valgrind` for
+C and C++).
 
 ## License
 
