@@ -5,7 +5,7 @@
 ## Cài đặt
 
 ```bash
-git clone https://github.com/polyglot-architect/polyglot-architect.git \
+git clone https://github.com/vipera-iso/polyglot-architect.git \
   ~/.claude/skills/polyglot-architect
 chmod +x ~/.claude/skills/polyglot-architect/scripts/*.sh
 ```

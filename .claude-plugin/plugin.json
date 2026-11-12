@@ -4,10 +4,10 @@
   "description": "Review any codebase and decide component by component which language wins. Produces a quantified, boundary-anchored migration roadmap.",
   "author": {
     "name": "Polyglot Architect",
-    "url": "https://github.com/polyglot-architect"
+    "url": "https://github.com/vipera-iso"
   },
-  "homepage": "https://github.com/polyglot-architect/polyglot-architect",
-  "repository": "https://github.com/polyglot-architect/polyglot-architect",
+  "homepage": "https://github.com/vipera-iso/polyglot-architect",
+  "repository": "https://github.com/vipera-iso/polyglot-architect",
   "license": "MIT",
   "keywords": [
     "claude-code",
