@@ -1,0 +1,23 @@
+{
+  "name": "polyglot-architect",
+  "version": "0.1.0",
+  "description": "Review any codebase and decide component by component which language wins. Produces a quantified, boundary-anchored migration roadmap.",
+  "author": {
+    "name": "<Your Name>",
+    "url": "https://github.com/<you>"
+  },
+  "homepage": "https://github.com/<you>/polyglot-architect",
+  "repository": "https://github.com/<you>/polyglot-architect",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "skill",
+    "architecture",
+    "polyglot",
+    "migration",
+    "performance",
+    "ffi",
+    "profiling"
+  ],
+  "skills": ["./SKILL.md"]
+}

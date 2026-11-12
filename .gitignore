@@ -1,0 +1,25 @@
+# Profiler outputs
+*.svg
+*.prof
+cpu.prof
+mem.prof
+trace.out
+perf.data
+perf.data.*
+flamegraph*
+profile.svg
+heaptrack.*
+isolate-*.log
+cpuprofile.json
+
+# Reports
+*.report.md
+polyglot-report-*.md
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store

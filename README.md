@@ -1,91 +1,152 @@
-# polyglot-architect
+<div align="center">
 
-An agent skill that reviews an existing codebase and decides, component by
-component, whether another programming language would actually win — then
-proves it with numbers, or says **don't migrate**.
+# Polyglot Architect
 
-It exists because "rewrite it in Rust/Go/Zig/C++" is usually a guess dressed as
-an architecture. The skill forces the guess into a shape that can fail:
+**Review any codebase. Decide component by component which language wins. Ship a migration roadmap — not a language popularity ranking.**
 
-- every proposed swap must map to a boundary that already exists (crate,
-  module, trait, RPC) — no invented seams;
-- every component is quantified as cold / per-request / per-token share of wall
-  clock, or marked "insufficient data" and left alone;
-- the existing conformance suite is the oracle; if it does not cover the seam,
-  the first deliverable is tests, not a port;
-- the language boundary is specified like an API: ABI, ownership, error model,
-  marshalling cost, cancellation;
-- a mandatory anti-hype pass deletes any language whose removal loses nothing.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-skill-blue)](https://docs.claude.com/en/docs/claude-code/skills)
+[![AgentSkills](https://img.shields.io/badge/agentskills.io-compatible-green)](https://agentskills.io)
 
-The default verdict is **keep**. A swap has to earn its toolchain tax.
+English · [Tiếng Việt](docs/multi-language/README.vi.md) · [简体中文](docs/multi-language/README.zh.md)
 
-## Install
+[Quick start](#quick-start) · [How it works](#how-it-works) · [Workflow](#workflow) · [Examples](examples/) · [FAQ](docs/faq.md)
 
-Copy the directory into your agent's skills folder:
+</div>
 
-```sh
-git clone https://github.com/vipera-iso/polyglot-architect
-cp -r polyglot-architect ~/.agents/skills/polyglot-architect
-# Claude Code reads ~/.claude/skills; a symlink keeps one copy
-ln -s ~/.agents/skills/polyglot-architect ~/.claude/skills/polyglot-architect
+---
+
+## What it is
+
+A **Claude Code skill** that turns your AI agent into a systems architect.
+Ask it to review a repo, and it will:
+
+1. **Read** the actual codebase — detect project type, list every unit that has a real boundary.
+2. **Profile** the project with the right tool per language (`cargo flamegraph`, `py-spy`, `pprof`, `perf`, `async-profiler`, `dotnet-trace`).
+3. **Match** each hot unit's *properties* (compute-bound, memory-bound, SIMD, GC, stateful) to a language — never by reputation.
+4. **Decide** per unit: **SWAP**, **BIND**, **CONSIDER**, or **KEEP**.
+5. **Design** the FFI seam: mechanism, ownership, error model, threading, cancellation, marshalling cost.
+6. **Roadmap** with shadow-mode + feature flag + measurable go/no-go metric per phase.
+7. **Self-critique** — remove decorative swaps, keep only languages that pay for themselves.
+
+The answer is quantified. **"Don't migrate" is a valid and common verdict.**
+
+## Why not just ask "what language should I use?"
+
+Because "what language is fastest" is the wrong question. Speed is a property of the **workload**, not the language. This skill forces the workflow that experienced systems engineers actually use:
+
+| Naive advice | This skill |
+|---|---|
+| "Rewrite it in Rust" | "Which unit? Is it hot? By how much? What does profiling say?" |
+| "Go is great for servers" | "Is this unit per-request or per-token? What's the latency budget? GC tail?" |
+| "Use C++ for speed" | "Is the cost of crossing the FFI boundary > 5% of the call's work?" |
+| "Add a third language" | "Can the current two languages reach the target metric? Show the number." |
+
+## Quick start
+
+```bash
+git clone https://github.com/<you>/polyglot-architect.git \
+  ~/.claude/skills/polyglot-architect
+chmod +x ~/.claude/skills/polyglot-architect/scripts/*.sh
 ```
 
-Or, with the `skills` CLI:
+Then in Claude Code:
 
-```sh
-npx skills add vipera-iso/polyglot-architect --skill polyglot-architect --yes
+```text
+/polyglot-architect
+
+# or just ask:
+Review my repo and tell me which parts should be rewritten in
+another language, which should stay, and why.
 ```
 
-## Use
-
-Ask a question that matches the description, or invoke it by name:
-
-- "Design a polyglot architecture for this repo."
-- "Which parts of this project should be rewritten in another language?"
-- "Is Zig worth it for our kernels?"
-
-The skill answers with a component map, a heat map, a decision table, seam
-specs, a KEEP list, a phased roadmap with go/no-go metrics, and a
-self-critique. It is allowed to conclude that the current single language is
-already right.
-
-## What it is not
-
-- Not a language ranking. Speed is a property of the workload, not a language.
-- Not a greenfield design tool. It reviews boundaries that already exist.
-- Not a rewrite planner for whole repos. Phase 1 is one unit, or the plan is
-  rejected as fantasy.
-
-## Files
+## How it works
 
 ```
-SKILL.md                            the skill body (7-step workflow + output
-                                    contract)
-scripts/discover-boundaries.sh      detect project type, list candidate units
-scripts/profile.sh                  language-agnostic profiler dispatcher
-references/project-layouts.md       where seams live in any project type
-references/language-strengths.md    property-to-language matching, and what a
-                                    language cannot fix (bandwidth, layout, cache)
-references/profiling-tools.md       profiler lookup per language, and how to
-                                    read a flamegraph
-references/concurrency-models.md    cross-runtime risk matrix, cancellation
-references/abi-checklist.md         seam template + marshalling worksheet
-references/report-template.md       fill-in report skeleton
-assets/decision-matrix-example.md   three worked examples: Rust engine, Node
-                                    monolith, Go mesh + Python sidecar
+ ┌─────────────────────────────────────────────────────────────┐
+ │  Your agent (Claude Code / Codex / Cursor / any MCP client) │
+ └────────────────────────────┬────────────────────────────────┘
+                              │ asks
+                              ▼
+ ┌─────────────────────────────────────────────────────────────┐
+ │                  Polyglot Architect skill                   │
+ │  Step 1: detect project type → map units                    │
+ │  Step 2: profile → classify cold / warm / hot / stateful    │
+ │  Step 3: match language by property, not name               │
+ │  Step 4: design FFI seam + marshalling cost                 │
+ │  Step 5: decision table (SWAP / BIND / CONSIDER / KEEP)     │
+ │  Step 6: anti-hype pass → delete decorative swaps           │
+ │  Step 7: roadmap with shadow mode + go/no-go metric         │
+ └────────────────────────────┬────────────────────────────────┘
+                              │ reads
+                              ▼
+ ┌─────────────────────────────────────────────────────────────┐
+ │  references/   project layouts, language matrix, ABI        │
+ │  scripts/      discover-boundaries.sh, profile.sh           │
+ │  examples/     worked decision-matrix reports               │
+ └─────────────────────────────────────────────────────────────┘
 ```
 
-The worked examples are deliberately mostly KEEP rows: they show the filter
-doing its job — in all three, the swaps that survive are bindings to mature
-libraries that already exist, and no example ends with more than two
-languages.
+Full details: [docs/workflow.md](docs/workflow.md).
 
-The two scripts are optional helpers — the skill works without them.
-`profile.sh` delegates to per-language profilers that are installed
-separately when you want real measurements (`cargo install flamegraph`,
-`pip install py-spy memray`, `npm i -g clinic`, or `perf` / `valgrind` for
-C and C++).
+## Supported projects
+
+| Project type | Detection marker |
+|---|---|
+| Rust workspace | `Cargo.toml` `[workspace]` |
+| Node / pnpm / yarn monorepo | `package.json` `workspaces`, `pnpm-workspace.yaml` |
+| Go modules | `go.mod` |
+| Python (uv / poetry / setuptools) | `pyproject.toml`, `setup.py` |
+| Maven / Gradle multi-module | `pom.xml`, `settings.gradle` |
+| .NET solution | `*.sln`, `*.csproj` |
+| C / C++ | `CMakeLists.txt`, `Makefile` |
+| Bazel | `WORKSPACE`, `BUILD` |
+| Microservices | per-service boundaries |
+| Polyglot (already multi-language) | each language block |
+| Generic monolith | top-level directory boundaries |
+
+See [references/project-layouts.md](references/project-layouts.md).
+
+## Verdicts
+
+| Verdict | Meaning | Typical cost |
+|---|---|---|
+| **SWAP** | Replace implementation with another language behind the existing boundary | 1–6 dev-months |
+| **BIND** | Keep current code, call a mature library in another language | 0.5–1 dev-month |
+| **CONSIDER** | Plausible but under-evidenced; must name the exact measurement needed | — |
+| **KEEP** | Current language wins; swap is negative-ROI | — |
+
+**BIND is almost always cheaper than SWAP** when the target work is already solved by a library (`sharp`, `tokenizers`, `onnxruntime`, `libjpeg`).
+
+## Examples
+
+Worked end-to-end reports:
+
+- [Rust workspace](examples/01-rust-workspace.md) — 4 crates, one SWAP.
+- [Node/TypeScript monolith](examples/02-node-monolith.md) — two BINDs, zero rewrites.
+- [Go mesh + Python ML sidecar](examples/03-go-python-mesh.md) — no language change; bind ONNX.
+- [Mixed monorepo](examples/04-monorepo-polyglot.md) — fourth language rejected by anti-hype.
+
+## FAQ
+
+**Do I need to change languages?** No — most repos get zero SWAPs. KEEP is the most common verdict.
+
+**Does it require profiling tools?** Yes — no swap without measurement. Missing profilers → unit marked "insufficient data".
+
+**Does it work for microservices?** Yes — each service is a unit, and the RPC protocol is the seam.
+
+**What if my project has no clear boundaries?** The skill proposes "create the seam first" in the current language.
+
+See [docs/faq.md](docs/faq.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports, new examples, new language matrix entries are welcome.
 
 ## License
 
-MIT — see `LICENSE-MIT`.
+MIT — see [LICENSE](LICENSE).
+
+## Disclaimer
+
+This skill produces **architecture recommendations**, not legal, security, or performance guarantees. Validate any proposal against your own workload, team, and risk tolerance.

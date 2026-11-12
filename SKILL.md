@@ -245,6 +245,6 @@ without 7.
 - `references/abi-checklist.md` — every FFI mechanism, seam template
 - `references/concurrency-models.md` — cross-runtime compatibility
 - `references/report-template.md` — fill-in report skeleton
-- `assets/decision-matrix-example.md` — 3 worked examples
+- `examples/` — worked end-to-end reports (Rust, Node, Go, Mixed)
 - `scripts/discover-boundaries.sh` — detect project type, list units
 - `scripts/profile.sh` — language-agnostic profiler dispatcher

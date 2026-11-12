@@ -1,0 +1,67 @@
+name: Validate skill
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required files exist
+        run: |
+          for f in SKILL.md README.md LICENSE references/language-strengths.md \
+                   references/abi-checklist.md scripts/discover-boundaries.sh \
+                   scripts/profile.sh; do
+            if [[ ! -f "$f" ]]; then
+              echo "::error::missing required file: $f"
+              exit 1
+            fi
+          done
+
+      - name: Validate YAML frontmatter
+        run: |
+          python3 - <<'PY'
+          import re, sys, yaml
+          text = open("SKILL.md", encoding="utf-8").read()
+          m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+          if not m:
+              print("::error::SKILL.md missing YAML frontmatter")
+              sys.exit(1)
+          fm = yaml.safe_load(m.group(1))
+          for key in ("name", "description"):
+              if key not in fm:
+                  print(f"::error::frontmatter missing '{key}'")
+                  sys.exit(1)
+          if fm["name"] != "polyglot-architect":
+              print("::error::name must be 'polyglot-architect'")
+              sys.exit(1)
+          if len(fm["description"]) > 1024:
+              print("::error::description exceeds 1024 chars")
+              sys.exit(1)
+          print("✓ frontmatter valid")
+          PY
+
+      - name: Check body length
+        run: |
+          lines=$(wc -l < SKILL.md)
+          echo "SKILL.md: $lines lines"
+          if [[ $lines -gt 500 ]]; then
+            echo "::error::SKILL.md body exceeds 500 lines"
+            exit 1
+          fi
+
+      - name: Shellcheck scripts
+        run: |
+          sudo apt-get install -y shellcheck
+          shellcheck scripts/*.sh tests/*.sh || true
+
+      - name: Run script tests
+        run: |
+          chmod +x scripts/*.sh tests/*.sh tests/fixtures/*.sh
+          bash tests/fixtures/create-fixtures.sh
+          bash tests/test-discover-boundaries.sh
+          bash tests/test-profile.sh

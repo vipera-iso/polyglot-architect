@@ -81,4 +81,5 @@ Threading:       <sync/async, runtime owner, affinity>
 Cancellation:    <how caller aborts in-flight>
 Marshalling:     <ns/call, bytes/call, % of call work>
 Test oracle:     <conformance / parity suite name>
+Concurrency risk: <from concurrency-models.md>
 ```

@@ -1,0 +1,15 @@
+{
+  "name": "polyglot-architect-marketplace",
+  "owner": {
+    "name": "<Your Name>",
+    "url": "https://github.com/<you>"
+  },
+  "plugins": [
+    {
+      "name": "polyglot-architect",
+      "source": "./",
+      "description": "Language-agnostic migration review skill for Claude Code.",
+      "version": "0.1.0"
+    }
+  ]
+}
