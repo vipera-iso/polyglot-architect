@@ -1,0 +1,22 @@
+# markdownlint-cli2 configuration
+#
+# Rules disabled for this repo (with reason):
+# - MD013:  line-length — tables, code fences, and badges exceed 80 cols
+# - MD022/MD031/MD032: heading and list spacing — intentional for dense skill docs
+# - MD026/MD027: trailing/leading punctuation in headings — used for phase labels
+# - MD033/MD041: README.md opens with a centering div before the H1
+# - MD040: fence language omitted for plain-text seam specs and outputs
+# - MD051: link fragments target GitHub-rendered anchors
+# - MD060: compact table pipe style (| a | b |) is used in reference tables
+
+MD013: false
+MD022: false
+MD031: false
+MD032: false
+MD026: false
+MD027: false
+MD033: false
+MD041: false
+MD040: false
+MD051: false
+MD060: false
