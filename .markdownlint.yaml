@@ -8,6 +8,12 @@
 # - MD040: fence language omitted for plain-text seam specs and outputs
 # - MD051: link fragments target GitHub-rendered anchors
 # - MD060: compact table pipe style (| a | b |) is used in reference tables
+#
+# MD024 keeps its default (duplicate headings are an error) but compares siblings
+# only: a Keep a Changelog entry repeats `### Added` under each `## [version]`, which
+# the rule flags as a global duplicate while still catching a real duplicate inside
+# one release section.
+MD024: { siblings_only: true }
 
 MD013: false
 MD022: false
