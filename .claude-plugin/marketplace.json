@@ -9,7 +9,7 @@
       "name": "polyglot-architect",
       "source": "./",
       "description": "Language-agnostic migration review skill for Claude Code.",
-      "version": "0.1.0"
+      "version": "0.2.0"
     }
   ]
 }

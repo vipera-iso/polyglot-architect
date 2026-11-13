@@ -3,7 +3,7 @@
 All notable changes are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] — 2026-11-13
 
 ### Added
 - `references/measurement-hygiene.md` — provenance, denominators, sample size,

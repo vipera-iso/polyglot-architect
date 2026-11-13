@@ -1,6 +1,6 @@
 {
   "name": "polyglot-architect",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Review any codebase and decide component by component which language wins. Produces a quantified, boundary-anchored migration roadmap.",
   "author": {
     "name": "Polyglot Architect",
