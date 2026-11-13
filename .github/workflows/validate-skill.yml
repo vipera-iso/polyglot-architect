@@ -14,8 +14,8 @@ jobs:
       - name: Check required files exist
         run: |
           for f in SKILL.md README.md LICENSE references/language-strengths.md \
-                   references/abi-checklist.md scripts/discover-boundaries.sh \
-                   scripts/profile.sh; do
+                   references/abi-checklist.md references/measurement-hygiene.md \
+                   scripts/discover-boundaries.sh scripts/profile.sh; do
             if [[ ! -f "$f" ]]; then
               echo "::error::missing required file: $f"
               exit 1

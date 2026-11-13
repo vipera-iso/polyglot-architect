@@ -9,8 +9,11 @@ description: >
   part", to review a repo for performance architecture, or when the user
   shares a project layout and asks what to rewrite. Produces a quantified,
   boundary-anchored migration roadmap with a KEEP / BIND / SWAP / CONSIDER
-  verdict per unit — never a language popularity ranking. Does not apply to
-  greenfield projects with no existing code.
+  verdict per unit — never a language popularity ranking. Also use it to
+  audit an incoming proposal that cites benchmark speedups for another
+  language: it re-checks the numbers, the ceiling, and whether the language
+  changes the instruction stream at all. Does not apply to greenfield
+  projects with no existing code.
 when_to_use: >
   Activate when the user asks any of: "should I rewrite part of this project
   in another language?", "which language is best for [component]?", "design
@@ -39,25 +42,44 @@ polyglot repo that already has multiple runtimes.
 
 ## Non-negotiable rules
 
-1. **Boundary-first.** Every proposal must map 1:1 to an existing unit: a
-   crate, module, package, namespace, directory with its own build target,
-   service, or public API contract. No proposal without a named boundary.
-2. **Quantify before recommending.** Profile the project (Step 2) and
+1. **Boundary-first, but the boundary scales down.** Every SWAP or BIND
+   must map 1:1 to a unit the build system already names: a crate, module,
+   package, namespace, directory with its own build target, service, or
+   public API contract. A **hot unit** — one call site, one kernel, one
+   tensor shape, one loop — is also a unit for Steps 2 and 3, because that
+   is where the cycles actually are. Never propose a new build target for a
+   private helper; reopen the language question at that helper's call site
+   instead.
+2. **A number you did not measure is a claim.** Every figure handed to you —
+   a baseline from chat, a table in a README, a commit message, a benchmark
+   in a blog post — is a claim until it is re-run on this machine. Recompute
+   derived figures from raw ones: bytes read is not file size, tok/s means
+   nothing without a bytes-per-token figure, and "% of ceiling" needs a
+   ceiling that was measured, not inferred. Report **median of N runs with
+   the spread**, and say when the box is governor- or thermally limited.
+   See `references/measurement-hygiene.md`.
+3. **Quantify before recommending.** Profile the project (Step 2) and
    record wall-clock time per unit in three modes: **cold**, **warm**, and
    **hot**. If profiling is impossible, mark the unit **"insufficient
    data"** and do not recommend a swap.
-3. **The oracle is the existing test suite.** Every rewritten or bound
+4. **The oracle is the existing test suite.** Every rewritten or bound
    component must pass the project's existing conformance, parity, or
    integration tests. If tests do not reach the unit, the first task is a
    parity harness, not a port.
-4. **ABI is first-class.** Every SWAP or BIND row needs a complete seam
+5. **ABI is first-class.** Every SWAP or BIND row needs a complete seam
    spec: mechanism, ownership, error model, threading, cancellation,
    marshalling cost. See `references/abi-checklist.md`.
-5. **Anti-hype filter.** After drafting the report, remove any proposed
+6. **Anti-hype filter.** After drafting the report, remove any proposed
    swap whose absence would not make the architecture worse.
-6. **"Don't migrate" is a valid and common verdict.** If the current
-   language already wins, say so explicitly and state why a swap is
-   negative-ROI.
+7. **"Don't migrate" is a valid and common verdict — and it is not a
+   stopping point.** A KEEP row without a next lever is a shrug. Every KEEP
+   names the in-language work still on the table, the measurement it is
+   expected to move, and what result would reopen the language question.
+8. **A binding that defeats the project's stated purpose is a product
+   decision, not a technical recommendation.** If the maintainers' goal is
+   "beat X with our own code", binding X's library contradicts the goal no
+   matter how much faster it is. Record it as **CONSIDER-GOAL** and name the
+   sign-off it needs; do not smuggle it in as a KEEP-with-a-hint.
 
 ## Verdict vocabulary
 
@@ -70,11 +92,34 @@ Every decision-table row ends in exactly one of:
   instead of reimplementing). Cheaper than SWAP when the work is solved.
 - **CONSIDER** — plausible but under-evidenced. Must name the specific
   measurement needed before promoting to SWAP or demoting to KEEP.
-- **KEEP** — current language wins; a swap is negative-ROI.
+- **CONSIDER-GOAL** — technically sound, but adopting it changes what the
+  project is. Names the owner decision required, the cost of the change,
+  and the rollback. Never promoted by the agent alone.
+- **KEEP** — current language wins; a swap is negative-ROI. Carries the
+  next in-language lever and the measurement that would reopen the question.
 
 No "maybe later", no "explore", no vague recommendations.
 
 ## Workflow
+
+### Step 0 — Audit the numbers you were handed
+
+Before mapping anything, list every figure that came with the request and mark it
+**measured / claimed / unknown**. For each claimed figure, either re-run it or label it in the report
+as unverified. Four checks catch most bad numbers:
+
+1. **Denominator.** Is the byte count the read set or the file size? Should it be cached already?
+   Does a "% of peak" use a measured ceiling or the datasheet?
+2. **Sample size.** One run is an anecdote. Re-run N times in the same session and report median
+   plus range. If identical settings differ by more than ~10%, the box is thermally or governor
+   limited — say so in the report, and never compare across sessions.
+3. **Attribution.** A regression measured after a change may pre-date it. Stash the change and
+   re-measure the baseline before blaming anything.
+4. **Plausibility.** Compare against a ceiling you measured on this machine. A claim that exceeds a
+   measured ceiling is false, not ambitious.
+
+If this step is skipped, every later verdict inherits the error. It is cheaper to spend ten minutes
+here than to write a confident report on a noise sample.
 
 ### Step 1 — Detect project type and map units
 
@@ -112,6 +157,19 @@ output, commit reference, or "no measurement — proxy by complexity".
 If the flamegraph is **flat** — no single unit dominates — the workload is
 memory-bound, I/O-bound, or distributed. A language swap will not help.
 State this and stop for that unit.
+
+### Step 2b — If one unit is most of the time, split it before judging it
+
+A unit that owns more than ~50% of the clock is almost never one thing. Open it at the granularity
+of the loop: one row, one matmul, one call site, one request phase. Time each shape or call site and
+report `calls/pass`, `ms/call`, and achieved GB/s against the measured ceiling.
+
+The split routinely overturns the crate-level verdict. In the worked example
+(`references/measurement-hygiene.md`), the
+hottest crate ran its large tensors at 33-36 GB/s against a 43 GB/s measured ceiling (67-83%, i.e.
+already good), while four small tensors ran at 5-18 GB/s and took 16% of the step. The lever was a
+per-call thread handshake, invisible at crate granularity and invisible to a language question.
+Report the split even when the verdict stays KEEP.
 
 ### Step 3 — Match language strengths to units
 
@@ -176,6 +234,11 @@ Reversibility: **high** if behind feature flag and no code removed;
 **medium** if separate target but old code retained; **low** if the new
 language becomes required by CI or other units.
 
+Every **KEEP** row also carries two things in the table's last column or a footnote: the next
+in-language lever (what to try before any language question reopens) and the measurement that would
+change the verdict. "Keep Rust" is not a finding; "keep Rust, and the 2.4 ms of per-call handshakes
+is the next target" is.
+
 ### Step 6 — Anti-hype pass
 
 1. Which proposed **swap** is decorative, removable with no architectural
@@ -183,6 +246,21 @@ language becomes required by CI or other units.
 2. If limited to the two strongest languages, which two survive?
 3. What is the single largest polyglot risk here, and the concrete
    mitigation?
+
+Then run the **claim audit** on any proposal that arrived with benchmarks attached ("language X is
+20% faster", "Z fastpaths DRAM by 45%"):
+
+1. **Same workload?** A matvec kernel, a web server, and a tokenizer are not comparable. Speed is a
+   property of the workload.
+2. **Same machine class?** A laptop DDR4 result and an M-series result do not transfer.
+3. **Physically possible?** Compare the claim with the ceiling you measured. A 45% DRAM win over a
+   kernel already at 80% of the ceiling would exceed the memory system.
+4. **What would the language actually change?** If both compile to the same instruction stream
+   (`vpdpbusd`, `vmovdqu`), the language is not the variable. Name the mechanism the claim rests on.
+5. **Who measured it?** Vendor blog, single run, and unmerged PR are all claims, not evidence.
+
+A proposal that fails any of these is not a roadmap; it is a shopping list. Say so in one line and
+keep the current-language lever.
 
 Delete every row that fails question 1. Merge rows proposing the same
 language — the toolchain tax is paid once. A third language must be
@@ -236,6 +314,13 @@ without 7.
   job, BIND is almost always cheaper than SWAP.
 - **The team-skill miss.** If no one can debug the target language in
   production at 3am, that is a risk, not a footnote.
+- **The granularity trap.** Judging a crate whose cost lives in one call site. If a unit owns the
+  clock, split it (Step 2b) before you judge it.
+- **The imported number.** Building a verdict on a baseline from chat, a README, or a commit date.
+  Re-measure or label it unverified.
+- **The productivity wolf.** Replacing a non-bottleneck (an HTTP layer behind a 35 ms engine) with
+  a language chosen for developer velocity, then reporting it as a performance win. Say which axis
+  improved; do not launder velocity as throughput.
 
 ## Reference files
 
@@ -244,6 +329,7 @@ without 7.
 - `references/profiling-tools.md` — language → profiler lookup
 - `references/abi-checklist.md` — every FFI mechanism, seam template
 - `references/concurrency-models.md` — cross-runtime compatibility
+- `references/measurement-hygiene.md` — how to trust, re-run, and report a number
 - `references/report-template.md` — fill-in report skeleton
 - `examples/` — worked end-to-end reports (Rust, Node, Go, Mixed)
 - `scripts/discover-boundaries.sh` — detect project type, list units

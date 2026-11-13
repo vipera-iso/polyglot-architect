@@ -70,6 +70,7 @@ another language, which should stay, and why.
                               ▼
  ┌─────────────────────────────────────────────────────────────┐
  │                  Polyglot Architect skill                   │
+ │  Step 0: verify every number you were handed                │
  │  Step 1: detect project type → map units                    │
  │  Step 2: profile → classify cold / warm / hot / stateful    │
  │  Step 3: match language by property, not name               │
@@ -81,7 +82,7 @@ another language, which should stay, and why.
                               │ reads
                               ▼
  ┌─────────────────────────────────────────────────────────────┐
- │  references/   project layouts, language matrix, ABI        │
+ │  references/   layouts, language matrix, ABI, measurement   │
  │  scripts/      discover-boundaries.sh, profile.sh           │
  │  examples/     worked decision-matrix reports               │
  └─────────────────────────────────────────────────────────────┘

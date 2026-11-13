@@ -30,6 +30,16 @@ detect WORKSPACE "Bazel"
 detect WORKSPACE.bazel "Bazel"
 detect Makefile "Makefile"
 
+# A home directory contains every project its owner ever started, so every marker matches at depth
+# 3. Say that, instead of printing a list that describes six unrelated trees.
+HERE="$(pwd -P)"
+if [[ ${#DETECTED[@]} -ge 3 ]] && { [[ "$HERE" == "${HOME:-/nonexistent}" ]] || { [[ -d "$HERE/Desktop" ]] && [[ -d "$HERE/.config" ]]; }; }; then
+  echo "> **Warning:** this looks like a home directory, not one project. ${#DETECTED[@]} ecosystems"
+  echo "> matched within three levels, most of them from other trees. Re-run against the project root:"
+  echo "> \`scripts/discover-boundaries.sh path/to/project\`."
+  echo
+fi
+
 echo "## Project detection"
 if [[ ${#DETECTED[@]} -eq 0 ]]; then
   echo "- Type: unknown (no build system detected in top 3 levels)"
